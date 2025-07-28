@@ -19,6 +19,7 @@
         }
         .gas-card {
             min-width: 160px;
+            min-height: 130px;
             margin-bottom: 1.2rem;
             border-radius: 18px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.08);
@@ -27,6 +28,18 @@
             transition: transform 0.15s;
         }
         .gas-card:hover { transform: translateY(-4px) scale(1.03); }
+        .gas-card .card-body {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 100%;
+        }
+        .gas-info-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+        }
         .marquee {
             width: 100%;
             overflow: hidden;
@@ -47,33 +60,33 @@
             0% { transform: translate(0, 0); }
             100% { transform: translate(-100%, 0); }
         }
-        .status-good { color: #fff; background: #28a745; border-radius: 8px; padding: 2px 12px; font-weight: bold; font-size: 1rem; }
-        .status-warning { color: #fff; background: #ffc107; border-radius: 8px; padding: 2px 12px; font-weight: bold; font-size: 1rem; }
-        .status-bad { color: #fff; background: #dc3545; border-radius: 8px; padding: 2px 12px; font-weight: bold; font-size: 1rem; }
-        .card-title { font-size: 1.1rem; font-weight: 600; letter-spacing: 1px; }
+        .status-good { color: #fff; background: #28a745; border-radius: 50%; padding: 12px; font-weight: bold; font-size: 1.5rem; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
+        .status-warning { color: #fff; background: #ffc107; border-radius: 50%; padding: 12px; font-weight: bold; font-size: 1.5rem; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
+        .status-bad { color: #fff; background: #dc3545; border-radius: 50%; padding: 12px; font-weight: bold; font-size: 1.5rem; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; }
+        .card-title { font-size: 1.5rem; font-weight: 700; letter-spacing: 1px; }
         .card-text { font-size: 1.2rem; }
         #datetime, #location { font-size: 1.05rem; font-weight: 500; }
         .gas-value {
-            font-size: 2.1rem;
-            font-weight: 700;
+            font-size: 2.5rem;
+            font-weight: 800;
             color: #2a3a5a;
             margin-bottom: 0.2rem;
             letter-spacing: 1px;
         }
         .gas-unit {
-            font-size: 1.1rem;
+            font-size: 1.3rem;
             color: #6c757d;
-            margin-left: 4px;
+            margin-left: 6px;
         }
         .gas-good { color: #28a745 !important; }
         .gas-warning { color: #ffc107 !important; }
         .gas-bad { color: #dc3545 !important; }
-        .card-good { border-top: 4px solid #28a745; }
-        .card-warning { border-top: 4px solid #ffc107; }
-        .card-bad { border-top: 4px solid #dc3545; }
+        .card-good { border-left: 4px solid #28a745; }
+        .card-warning { border-left: 4px solid #ffc107; }
+        .card-bad { border-left: 4px solid #dc3545; }
         @media (max-width: 768px) {
             .header-card { padding: 10px 0 6px 0; }
-            .card-title { font-size: 1rem; }
+            .card-title { font-size: 1.2rem; }
             .card-text { font-size: 1rem; }
             .header-row {
                 flex-direction: column;
@@ -101,6 +114,16 @@
             }
             .mobile-bottom-space {
                 margin-bottom: 24px !important;
+            }
+            .gas-card { min-height: 110px; }
+            .gas-value {
+                font-size: 1.7rem;
+            }
+            .status-good, .status-warning, .status-bad {
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
+                padding: 8px;
             }
         }
     </style>
@@ -253,9 +276,11 @@
                 gasList.innerHTML += `
                 <div class="col-6 col-md-4">
                     <div class="card gas-card card-${statusClass}">
-                        <div class="card-body text-center">
-                            <h6 class="card-title">${gas.name}</h6>
-                            <div class="gas-value gas-${statusClass}">${gas.value}<span class="gas-unit">${gas.unit}</span></div>
+                        <div class="card-body">
+                            <div class="gas-info-col">
+                                <h6 class="card-title mb-3">${gas.name}</h6>
+                                <div class="gas-value gas-${statusClass}">${gas.value}<span class="gas-unit">${gas.unit}</span></div>
+                            </div>
                             <span class="${status.cls}" title="${status.label}" aria-label="${status.label}">${status.text}</span>
                         </div>
                     </div>
