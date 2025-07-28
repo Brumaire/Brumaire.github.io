@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>閾值設定 - 智慧公廁空氣品質監測器</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #f4f6fa; font-family: 'Noto Sans TC', 'Microsoft JhengHei', Arial, sans-serif; }
+        .setting-card { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); padding: 32px 28px; }
+        .form-label { font-weight: 600; }
+        .btn-primary { min-width: 100px; }
+    </style>
+</head>
+<body>
+    <div class="setting-card">
+        <h3 class="mb-4 text-center">氣體濃度閾值設定</h3>
+        <form id="thresholdForm">
+            <div id="gas-settings"></div>
+            <div class="d-flex justify-content-between mt-4">
+                <a href="index.html" class="btn btn-secondary">返回主頁</a>
+                <button type="submit" class="btn btn-primary">儲存設定</button>
+            </div>
+        </form>
+    </div>
+    <script>
+        // 預設閾值
+        const defaultThresholds = {
+            NO2:   { good: 0.02, warning: 0.04 },
+            O3:    { good: 0.05, warning: 0.1 },
+            H2S:   { good: 0.01, warning: 0.02 },
+            NH3:   { good: 0.1, warning: 0.2 },
+            CO2:   { good: 800, warning: 1200 },
+            H2:    { good: 0.05, warning: 0.1 },
+            VOC:   { good: 0.3, warning: 0.6 },
+            CO:    { good: 0.01, warning: 0.02 },
+            'PM2.5': { good: 15, warning: 35 }
+        };
+        const gasNames = {
+            NO2: '二氧化氮 (NO₂)',
+            O3: '臭氧 (O₃)',
+            H2S: '硫化氫 (H₂S)',
+            NH3: '氨 (NH₃)',
+            CO2: '二氧化碳 (CO₂)',
+            H2: '氫氣 (H₂)',
+            VOC: '揮發性有機物 (VOC)',
+            CO: '一氧化碳 (CO)',
+            'PM2.5': '懸浮微粒 (PM2.5)'
+        };
+        // 讀取 localStorage
+        function getThresholds() {
+            const t = localStorage.getItem('thresholds');
+            if (!t) return defaultThresholds;
+            try { return JSON.parse(t); } catch { return defaultThresholds; }
+        }
+        // 動態產生表單
+        function renderForm() {
+            const thresholds = getThresholds();
+            const container = document.getElementById('gas-settings');
+            container.innerHTML = '';
+            Object.keys(defaultThresholds).forEach(gas => {
+                const th = thresholds[gas] || defaultThresholds[gas];
+                container.innerHTML += `
+                <div class="mb-3 row align-items-center">
+                    <label class="col-sm-4 col-form-label">${gasNames[gas]}</label>
+                    <div class="col-sm-4">
+                        <input type="number" step="any" min="0" class="form-control" name="${gas}_good" value="${th.good}" required>
+                        <div class="form-text">良好上限</div>
+                    </div>
+                    <div class="col-sm-4">
+                        <input type="number" step="any" min="0" class="form-control" name="${gas}_warning" value="${th.warning}" required>
+                        <div class="form-text">警戒上限</div>
+                    </div>
+                </div>`;
+            });
+        }
+        renderForm();
+        // 儲存設定
+        document.getElementById('thresholdForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const newThresholds = {};
+            Object.keys(defaultThresholds).forEach(gas => {
+                newThresholds[gas] = {
+                    good: parseFloat(form[`${gas}_good`].value),
+                    warning: parseFloat(form[`${gas}_warning`].value)
+                };
+            });
+            localStorage.setItem('thresholds', JSON.stringify(newThresholds));
+            alert('設定已儲存！');
+        });
+    </script>
+</body>
+</html>
