@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>智慧公廁空氣品質監測器</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
@@ -32,9 +33,9 @@
             white-space: nowrap;
             background: linear-gradient(90deg, #007bff 80%, #4f8cff 100%);
             color: #fff;
-            padding: 10px 0 8px 0;
-            font-size: 1.13rem;
-            letter-spacing: 1px;
+            padding: 18px 0 16px 0;
+            font-size: 1.6rem;
+            letter-spacing: 2px;
             box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
         }
         .marquee span {
@@ -64,6 +65,12 @@
             color: #6c757d;
             margin-left: 4px;
         }
+        .gas-good { color: #28a745 !important; }
+        .gas-warning { color: #ffc107 !important; }
+        .gas-bad { color: #dc3545 !important; }
+        .card-good { border-top: 4px solid #28a745; }
+        .card-warning { border-top: 4px solid #ffc107; }
+        .card-bad { border-top: 4px solid #dc3545; }
         @media (max-width: 768px) {
             .header-card { padding: 10px 0 6px 0; }
             .card-title { font-size: 1rem; }
@@ -92,6 +99,9 @@
             .header-info .btn {
                 margin-top: 8px;
             }
+            .mobile-bottom-space {
+                margin-bottom: 24px !important;
+            }
         }
     </style>
 </head>
@@ -113,7 +123,7 @@
             </div>
         </div>
         <div class="row mb-3">
-            <div class="col-md-3">
+            <div class="col-md-3 mobile-bottom-space">
                 <div class="card mb-2">
                     <div class="card-body">
                         <h5 class="card-title"><i class="bi bi-thermometer-half me-2 text-danger"></i>溫度</h5>
@@ -239,12 +249,13 @@
             gasList.innerHTML = '';
             data.gases.forEach(gas => {
                 const status = getStatus(gas.name, gas.value);
+                const statusClass = status.cls.replace('status-', '');
                 gasList.innerHTML += `
-                <div class="col-md-4">
-                    <div class="card gas-card">
+                <div class="col-6 col-md-4">
+                    <div class="card gas-card card-${statusClass}">
                         <div class="card-body text-center">
                             <h6 class="card-title">${gas.name}</h6>
-                            <div class="gas-value">${gas.value}<span class="gas-unit">${gas.unit}</span></div>
+                            <div class="gas-value gas-${statusClass}">${gas.value}<span class="gas-unit">${gas.unit}</span></div>
                             <span class="${status.cls}" title="${status.label}" aria-label="${status.label}">${status.text}</span>
                         </div>
                     </div>
