@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧公廁空氣品質監測器 - 後臺</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        body { background: linear-gradient(135deg, #e0e7ff 0%, #f4f6fa 100%); font-family: 'Noto Sans TC', 'Microsoft JhengHei', Arial, sans-serif; }
+        .logo { height: 60px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); background: #fff; padding: 6px; }
+        .header-row { margin-bottom: 24px; }
+        .admin-section { background: #fff; border-radius: 18px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); padding: 24px 18px; margin-bottom: 32px; }
+        .section-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 18px; }
+        .download-btn { min-width: 120px; }
+        .sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+        .sensor-card { background: #f8fafc; border-radius: 14px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 18px 12px; }
+        .sensor-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+        .ec-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+        .ec-card { background: #f8fafc; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); padding: 14px 10px; text-align: center; }
+        .ec-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+        .ec-value { font-size: 1.5rem; font-weight: 700; color: #2a3a5a; margin-bottom: 4px; }
+        .ec-download { margin-top: 6px; }
+        @media (max-width: 768px) {
+            .header-row { flex-direction: column; align-items: center !important; }
+            .header-logo-col, .header-title-col, .header-info-col { width: 100% !important; text-align: center !important; margin-bottom: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-3">
+        <div class="row align-items-center mb-3 header-row">
+            <div class="col-2 d-flex align-items-center justify-content-center header-logo-col">
+                <img src="https://cdn-icons-png.flaticon.com/512/2933/2933245.png" class="logo me-2" alt="LOGO">
+            </div>
+            <div class="col-8 text-center header-title-col">
+                <h2 class="fw-bold">智慧公廁空氣品質監測器</h2>
+            </div>
+            <div class="col-2 text-end header-info-col">
+                <div class="header-info">
+                    <div id="datetime" class="mb-1"></div>
+                    <div id="location">新竹市東區公廁</div>
+                </div>
+            </div>
+        </div>
+        <!-- 中上：溫度、濕度、使用人數圖表 -->
+        <div class="admin-section">
+            <div class="section-title">溫度 / 濕度 / 目前使用人數</div>
+            <canvas id="envChart" height="80"></canvas>
+            <div class="text-end mt-2">
+                <button class="btn btn-outline-primary download-btn" onclick="downloadCSV('env')"><i class="bi bi-download me-1"></i>下載 .csv</button>
+            </div>
+        </div>
+        <!-- 中中：8個NNL sensor圖表 -->
+        <div class="admin-section">
+            <div class="section-title">NNL Sensor 資訊</div>
+            <div class="sensor-grid" id="nnsensor-list"></div>
+        </div>
+        <!-- 中下：10個電化學感測器資訊 -->
+        <div class="admin-section">
+            <div class="section-title">電化學感測器資訊</div>
+            <div class="ec-list" id="ec-list"></div>
+        </div>
+    </div>
+    <script>
+        // 日期時間顯示
+        function updateDateTime() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            const timeStr = now.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('datetime').textContent = `${dateStr} ${timeStr}`;
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+
+        // 假資料
+        const timeLabels = Array.from({length: 12}, (_,i)=>`${(8+i)}:00`);
+        const envData = {
+            temp: [27,27.2,27.5,28,28.1,28.3,28.5,28.2,28,27.8,27.6,27.3],
+            humidity: [68,67,66,65,66,67,68,69,70,69,68,67],
+            people: [2,3,4,5,4,3,2,2,3,4,3,2]
+        };
+        const nnlSensors = [
+            'NNL-1','NNL-2','NNL-3','NNL-4','NNL-5','NNL-6','NNL-7','NNL-8'
+        ];
+        const nnlData = nnlSensors.map((name,i)=>({
+            name,
+            data: Array.from({length:12},()=>Math.round(Math.random()*100)/10+5)
+        }));
+        const ecSensors = [
+            'EC-1','EC-2','EC-3','EC-4','EC-5','EC-6','EC-7','EC-8','EC-9','EC-10'
+        ];
+        const ecData = ecSensors.map((name,i)=>({
+            name,
+            value: (Math.random()*2+0.5).toFixed(2)
+        }));
+
+        // Chart.js - 環境圖表
+        new Chart(document.getElementById('envChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    { label: '溫度(°C)', data: envData.temp, borderColor: '#ff6384', backgroundColor: 'rgba(255,99,132,0.1)', tension:0.3 },
+                    { label: '濕度(%)', data: envData.humidity, borderColor: '#36a2eb', backgroundColor: 'rgba(54,162,235,0.1)', tension:0.3 },
+                    { label: '使用人數', data: envData.people, borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.1)', tension:0.3, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                stacked: false,
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: '溫度/濕度' } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: '人數' } }
+                }
+            }
+        });
+        // NNL sensor 區塊
+        const nnGrid = document.getElementById('nnsensor-list');
+        nnlData.forEach((sensor,idx)=>{
+            const cid = `nnlChart${idx}`;
+            nnGrid.innerHTML += `
+            <div class="sensor-card">
+                <div class="sensor-title">${sensor.name}</div>
+                <canvas id="${cid}" height="60"></canvas>
+                <div class="text-end mt-2">
+                    <button class="btn btn-outline-primary btn-sm download-btn" onclick="downloadCSV('nnl',${idx})"><i class='bi bi-download me-1'></i>下載 .csv</button>
+                </div>
+            </div>`;
+            setTimeout(()=>{
+                new Chart(document.getElementById(cid).getContext('2d'), {
+                    type: 'line',
+                    data: { labels: timeLabels, datasets: [{ label: sensor.name, data: sensor.data, borderColor: '#4f8cff', backgroundColor: 'rgba(79,140,255,0.1)', tension:0.3 }] },
+                    options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+                });
+            }, 0);
+        });
+        // 電化學感測器區塊
+        const ecList = document.getElementById('ec-list');
+        ecData.forEach((sensor,idx)=>{
+            ecList.innerHTML += `
+            <div class="ec-card">
+                <div class="ec-title">${sensor.name}</div>
+                <div class="ec-value">${sensor.value}</div>
+                <button class="btn btn-outline-primary btn-sm ec-download" onclick="downloadCSV('ec',${idx})"><i class='bi bi-download me-1'></i>下載 .csv</button>
+            </div>`;
+        });
+        // 下載 CSV
+        function downloadCSV(type, idx) {
+            let csv = '', filename = '';
+            if(type==='env') {
+                csv = '時間,溫度,濕度,人數\n';
+                for(let i=0;i<timeLabels.length;i++) {
+                    csv += `${timeLabels[i]},${envData.temp[i]},${envData.humidity[i]},${envData.people[i]}\n`;
+                }
+                filename = 'env_data.csv';
+            } else if(type==='nnl') {
+                csv = '時間,數值\n';
+                for(let i=0;i<timeLabels.length;i++) {
+                    csv += `${timeLabels[i]},${nnlData[idx].data[i]}\n`;
+                }
+                filename = `${nnlData[idx].name}_data.csv`;
+            } else if(type==='ec') {
+                csv = '感測器,濃度\n';
+                csv += `${ecData[idx].name},${ecData[idx].value}\n`;
+                filename = `${ecData[idx].name}_data.csv`;
+            }
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
