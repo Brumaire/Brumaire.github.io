@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>黑白灰階調整器</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#FE7F01;--muted:#94a3b8}
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Noto Sans TC',Arial;background:linear-gradient(180deg,var(--bg),#071026);color:#e6eef8;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .wrap{width:100%;max-width:980px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;padding:18px;box-shadow:0 10px 30px rgba(2,6,23,0.6);}
+    h1{margin:0 0 8px 0;font-size:20px}
+    p.lead{margin:0 0 18px 0;color:var(--muted);font-size:13px}
+
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:16px}
+    .preview{background:#021226;border-radius:8px;padding:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:360px}
+    canvas{max-width:100%;border-radius:6px;display:block}
+
+    .controls{display:flex;flex-direction:column;gap:12px;padding:12px}
+    .card{background:rgba(255,255,255,0.02);padding:12px;border-radius:8px}
+    label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
+    input[type=file]{display:block}
+    .slider-row{display:flex;gap:8px;align-items:center}
+    input[type=range]{width:100%}
+    .small{font-size:12px;color:var(--muted)}
+    .btn{background:var(--accent);border:none;color:#06202a;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer}
+    .mutebtn{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);padding:8px 10px;border-radius:8px;cursor:pointer}
+    .row{display:flex;gap:8px}
+    .drop{border:2px dashed rgba(255,255,255,0.03);border-radius:8px;padding:18px;text-align:center;color:var(--muted)}
+    .meta{font-size:12px;color:var(--muted);margin-top:6px}
+
+    @media (max-width:880px){
+      .grid{grid-template-columns:1fr;}
+      .preview{min-height:260px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>線上黑白灰階調整器</h1>
+    <p class="lead">上傳圖片 → 調整灰階強度（0% 原色 → 100% 完全黑白）→ 下載結果。支援拖曳、即時預覽與高品質匯出。</p>
+
+    <div class="grid">
+      <div class="preview card" id="preview">
+        <div class="drop" id="dropZone">拖曳圖片到此處或按下上傳按鈕</div>
+        <canvas id="canvas" style="display:none"></canvas>
+        <div class="meta" id="imgInfo" style="display:none"></div>
+      </div>
+
+      <div class="controls">
+        <div class="card">
+          <label>上傳圖片</label>
+          <input type="file" id="fileInput" accept="image/*" />
+          <div style="height:8px"></div>
+          <div class="row">
+            <button class="btn" id="resetBtn">重置</button>
+            <button class="mutebtn" id="downloadBtn">下載 PNG</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>灰階強度 <span id="percent" style="font-weight:700">50%</span></label>
+          <div class="slider-row">
+            <input type="range" id="slider" min="0" max="100" value="50" />
+          </div>
+          <div class="small">0%：原始彩色。100%：完全黑白（灰階）。中間為漸進混合。</div>
+        </div>
+
+        <div class="card">
+          <label>預覽品質</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="quality">
+              <option value="1">1x（原始尺寸）</option>
+              <option value="0.75">0.75x</option>
+              <option value="0.5">0.5x（較快）</option>
+              <option value="0.25">0.25x（最快）</option>
+            </select>
+            <div style="flex:1"></div>
+            <button class="mutebtn" id="fitBtn">自動適應預覽</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <label>說明</label>
+          <div class="small">此工具在瀏覽器內運算，圖片不會上傳到任何伺服器。若要高畫質下載，選擇 1x 並按「下載 PNG」。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const slider = document.getElementById('slider');
+    const percent = document.getElementById('percent');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const dropZone = document.getElementById('dropZone');
+    const imgInfo = document.getElementById('imgInfo');
+    const qualitySelect = document.getElementById('quality');
+    const fitBtn = document.getElementById('fitBtn');
+
+    let originalImage = null; // Image object
+    let originalImageData = null; // Uint8ClampedArray of original pixels
+    let workingWidth = 0, workingHeight = 0;
+
+    function showInfo(text){ imgInfo.style.display='block'; imgInfo.textContent = text; }
+
+    fileInput.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if(f) loadFile(f);
+    });
+
+    dropZone.addEventListener('dragover', e=>{e.preventDefault(); dropZone.style.borderColor='rgba(255,255,255,0.12)'});
+    dropZone.addEventListener('dragleave', e=>{e.preventDefault(); dropZone.style.borderColor='rgba(255,255,255,0.03)'});
+    dropZone.addEventListener('drop', e=>{
+      e.preventDefault(); dropZone.style.borderColor='rgba(255,255,255,0.03)';
+      const f = e.dataTransfer.files[0]; if(f) loadFile(f);
+    });
+
+    function loadFile(file){
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{
+        originalImage = img;
+        setupCanvas();
+        URL.revokeObjectURL(url);
+        showInfo(`${file.name} — ${img.width} x ${img.height}`);
+        dropZone.style.display='none';
+        canvas.style.display='block';
+      }
+      img.onerror = ()=>{alert('載入圖片失敗。請確認檔案為圖片格式。')}
+      img.src = url;
+    }
+
+    function setupCanvas(){
+      // 根據選擇的品質縮放預覽尺寸
+      const q = parseFloat(qualitySelect.value) || 1;
+      workingWidth = Math.max(1, Math.round(originalImage.width * q));
+      workingHeight = Math.max(1, Math.round(originalImage.height * q));
+      canvas.width = workingWidth;
+      canvas.height = workingHeight;
+      ctx.drawImage(originalImage, 0, 0, workingWidth, workingHeight);
+      originalImageData = ctx.getImageData(0,0,workingWidth,workingHeight);
+      applyGrayscale();
+    }
+
+    function applyGrayscale(){
+      if(!originalImageData) return;
+      const t = parseInt(slider.value,10)/100; // 0..1
+      percent.textContent = Math.round(t*100) + '%';
+
+      // 取得原始像素（複製一份以免覆寫原始）
+      const src = originalImageData.data;
+      const out = ctx.createImageData(originalImageData.width, originalImageData.height);
+      const dst = out.data;
+      // 計算灰階，然後與原色做線性插值
+      for(let i=0;i<src.length;i+=4){
+        const r = src[i], g = src[i+1], b = src[i+2], a = src[i+3];
+        // 常見灰階公式（感知加權）
+        const gray = Math.round(0.299*r + 0.587*g + 0.114*b);
+        dst[i]   = Math.round(r*(1-t) + gray*t);
+        dst[i+1] = Math.round(g*(1-t) + gray*t);
+        dst[i+2] = Math.round(b*(1-t) + gray*t);
+        dst[i+3] = a;
+      }
+      ctx.putImageData(out,0,0);
+    }
+
+    slider.addEventListener('input', ()=>{
+      applyGrayscale();
+    });
+
+    qualitySelect.addEventListener('change', ()=>{
+      if(!originalImage) return;
+      setupCanvas();
+    });
+
+    resetBtn.addEventListener('click', ()=>{
+      if(!originalImage) return;
+      slider.value = 50; percent.textContent='50%';
+      qualitySelect.value = '1';
+      setupCanvas();
+    });
+
+    fitBtn.addEventListener('click', ()=>{
+      // 讓 canvas 在父容器內自動適應（只是視覺效果）
+      canvas.style.width = '100%';
+      canvas.style.height = 'auto';
+    });
+
+    downloadBtn.addEventListener('click', ()=>{
+      if(!originalImage) return alert('請先上傳圖片');
+      // 為了高畫質下載，重新以原始尺寸進行運算
+      const tmpCanvas = document.createElement('canvas');
+      const tw = originalImage.width, th = originalImage.height;
+      tmpCanvas.width = tw; tmpCanvas.height = th;
+      const tctx = tmpCanvas.getContext('2d');
+      tctx.drawImage(originalImage,0,0,tw,th);
+      const src = tctx.getImageData(0,0,tw,th).data;
+      const out = tctx.createImageData(tw,th);
+      const dst = out.data;
+      const t = parseInt(slider.value,10)/100;
+      for(let i=0;i<src.length;i+=4){
+        const r = src[i], g = src[i+1], b = src[i+2], a = src[i+3];
+        const gray = Math.round(0.299*r + 0.587*g + 0.114*b);
+        dst[i]   = Math.round(r*(1-t) + gray*t);
+        dst[i+1] = Math.round(g*(1-t) + gray*t);
+        dst[i+2] = Math.round(b*(1-t) + gray*t);
+        dst[i+3] = a;
+      }
+      tctx.putImageData(out,0,0);
+
+      // 觸發下載
+      tmpCanvas.toBlob(blob=>{
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'grayscale-result.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }, 'image/png');
+    });
+
+    // init: 支援拖放整個畫面
+    ['dragenter','dragover'].forEach(ev=>{
+      window.addEventListener(ev,e=>{e.preventDefault();});
+    });
+    window.addEventListener('drop', e=>{e.preventDefault();});
+  </script>
+</body>
+</html>

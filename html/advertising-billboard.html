@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>純前端播放器原型</title>
+<script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+<style>
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Noto Sans TC", sans-serif;
+    background: #222;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #toolbar {
+    padding: 12px 18px;
+    background: #1c1c1c;
+    border-bottom: 1px solid #444;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  #toolbar .toolbar-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-right: 8px;
+    color: #ddd;
+  }
+  #toolbar button {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: #2a2a2a;
+    color: #f3f3f3;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+  #toolbar button:hover {
+    background: #1a8ffc;
+    border-color: #1a8ffc;
+  }
+  #workspace {
+    flex: 1;
+    position: relative;
+  }
+  #container {
+    position: absolute;
+    inset: 0;
+    background: #333;
+    overflow: hidden;
+  }
+  .block {
+    position: absolute;
+    background: #444;
+    border: 2px solid #666;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    cursor: move;
+  }
+  .block-controls {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    gap: 6px;
+    z-index: 20;
+  }
+  .block-btn {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #f5f5f5;
+    border-radius: 6px;
+    font-size: 12px;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  .block-btn:hover {
+    background: rgba(220,53,69,0.85);
+    border-color: rgba(220,53,69,0.9);
+  }
+  .marquee {
+    white-space: nowrap;
+    display: inline-block;
+    will-change: transform;
+  }
+  .media-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+  }
+  .media-wrapper video,
+  .media-wrapper img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: none;
+  }
+  .media-placeholder {
+    color: #bbb;
+    font-size: 14px;
+    text-align: center;
+    padding: 0 24px;
+    line-height: 1.6;
+  }
+  .media-caption {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.55);
+    font-size: 13px;
+  }
+  #editorOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 1000;
+  }
+  #editorOverlay.active { display: flex; }
+  .editor-dialog {
+    width: 100%;
+    max-width: 460px;
+    background: #1d1d1d;
+    border: 1px solid #555;
+    border-radius: 10px;
+    padding: 22px;
+    box-shadow: 0 20px 45px rgba(0,0,0,0.55);
+  }
+  .editor-dialog h2 { margin: 0 0 14px 0; font-size: 20px; }
+  .editor-dialog label { display: block; margin-bottom: 6px; font-size: 14px; color: #e5e5e5; }
+  .editor-dialog textarea,
+  .editor-dialog input[type="text"],
+  .editor-dialog input[type="range"] {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid #555;
+    background: #2a2a2a;
+    color: #fff;
+    font-size: 14px;
+  }
+  .editor-dialog textarea { min-height: 90px; resize: vertical; }
+  .editor-section { display: none; flex-direction: column; gap: 12px; }
+  .editor-section.active { display: flex; }
+  .editor-note { font-size: 13px; color: #bcbcbc; line-height: 1.6; }
+  .editor-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .editor-actions button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .editor-cancel { background: #3c3c3c; color: #efefef; }
+  .editor-save { background: #1a8ffc; color: #fff; }
+  .editor-speed { display: flex; gap: 12px; align-items: center; }
+  .editor-speed output { font-size: 13px; color: #bcbcbc; min-width: 36px; text-align: right; }
+  .media-list { display: flex; flex-direction: column; gap: 10px; }
+  .media-empty {
+    padding: 12px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.05);
+    color: #bcbcbc;
+    font-size: 13px;
+    text-align: center;
+  }
+  .media-item {
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(20,20,20,0.7);
+  }
+  .media-item.is-active {
+    border-color: #1a8ffc;
+    background: rgba(26,143,252,0.12);
+  }
+  .media-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .media-item-info { display: flex; align-items: center; gap: 10px; }
+  .media-badge {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.1);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .media-name { font-size: 13px; color: #eee; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .media-duration {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #bbb;
+  }
+  .media-duration input {
+    width: 80px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: #2a2a2a;
+    color: #f0f0f0;
+  }
+  .media-item-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .media-item-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .media-item-actions button {
+    background: #323232;
+    color: #f0f0f0;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .media-item-actions button:hover { background: #3e3e3e; }
+  .media-actions { display: flex; justify-content: space-between; align-items: center; }
+  .upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    background: #1a8ffc;
+    color: #fff;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .upload-btn input { display: none; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <span class="toolbar-title">新增區塊</span>
+  <button type="button" data-add-block="media">多媒體</button>
+  <button type="button" data-add-block="marquee">跑馬燈</button>
+  <button type="button" data-add-block="date">日期時間</button>
+</div>
+<div id="workspace">
+  <div id="container"></div>
+</div>
+
+<div id="editorOverlay">
+  <div class="editor-dialog">
+    <h2 id="editorTitle">編輯區塊</h2>
+    <form id="editorForm">
+      <div class="editor-section" data-section="media">
+        <p class="editor-note">
+          支援拖放或選擇多個影片、圖片檔。可在此調整播放順序與個別播放秒數。
+          影片播放秒數設定為 0 時會播放到結束；圖片預設 5 秒，可依需求修改。
+        </p>
+        <div class="media-list" id="mediaList"></div>
+        <div class="media-actions">
+          <label class="upload-btn">
+            新增檔案
+            <input type="file" id="mediaFileInput" accept="video/*,image/*" multiple>
+          </label>
+        </div>
+      </div>
+
+      <div class="editor-section" data-section="marquee">
+        <div>
+          <label for="marqueeText">跑馬燈文字</label>
+          <textarea id="marqueeText" placeholder="輸入要顯示的內容"></textarea>
+        </div>
+        <div>
+          <label for="marqueeSpeed">滾動速度</label>
+          <div class="editor-speed">
+            <input type="range" id="marqueeSpeed" min="0.5" max="10" step="0.5">
+            <output id="marqueeSpeedValue">0</output>
+          </div>
+        </div>
+        <p class="editor-note">數值越大，跑馬燈移動越快。</p>
+      </div>
+
+      <div class="editor-section" data-section="date">
+        <p class="editor-note">日期區塊目前沒有其他可調整的設定。</p>
+      </div>
+
+      <div class="editor-actions">
+        <button type="button" class="editor-cancel" id="editorCancel">取消</button>
+        <button type="submit" class="editor-save">儲存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const container = document.getElementById('container');
+const toolbar = document.getElementById('toolbar');
+
+const MEDIA_DEFAULT_DURATION = { video: 0, image: 5 };
+
+let blockIdCounter = 0;
+function nextBlockId() {
+  blockIdCounter += 1;
+  return blockIdCounter;
+}
+
+function ensureMediaItemDefaults(item) {
+  if (!item) return item;
+  if (item.type === 'video') {
+    if (!Number.isFinite(item.duration) || item.duration < 0) item.duration = MEDIA_DEFAULT_DURATION.video;
+  } else if (item.type === 'image') {
+    if (!Number.isFinite(item.duration) || item.duration <= 0) item.duration = MEDIA_DEFAULT_DURATION.image;
+  }
+  return item;
+}
+
+let blocks = [
+  { id: nextBlockId(), type: 'media', playlist: [], currentIndex: 0, x: 40, y: 40, width: 480, height: 270 },
+  { id: nextBlockId(), type: 'marquee', text: '這是跑馬燈示範訊息', x: 40, y: 340, width: 600, height: 50, speed: 2 },
+  { id: nextBlockId(), type: 'date', x: 40, y: 420, width: 240, height: 50 }
+];
+
+let editingContext = null;
+
+function getDefaultPosition() {
+  const offset = blocks.length * 30;
+  return { x: 40 + offset, y: 40 + offset };
+}
+
+function createBlock(type) {
+  const pos = getDefaultPosition();
+  switch (type) {
+    case 'media':
+      return { id: nextBlockId(), type: 'media', playlist: [], currentIndex: 0, width: 480, height: 270, ...pos };
+    case 'marquee':
+      return { id: nextBlockId(), type: 'marquee', text: '新的跑馬燈內容', speed: 2, width: 600, height: 50, ...pos };
+    case 'date':
+      return { id: nextBlockId(), type: 'date', width: 240, height: 50, ...pos };
+    default:
+      return null;
+  }
+}
+
+function clearMediaTimer(state) {
+  if (state && state.transitionTimer) {
+    clearTimeout(state.transitionTimer);
+    state.transitionTimer = null;
+  }
+}
+
+function advanceMedia(block, element) {
+  const playlist = block.playlist || [];
+  const state = element._mediaState;
+  if (!playlist.length || !state) {
+    clearMediaTimer(state);
+    return;
+  }
+  clearMediaTimer(state);
+  if (state.video) {
+    state.video.pause();
+  }
+  block.currentIndex = (block.currentIndex + 1) % playlist.length;
+  renderMediaBlock(block, element);
+}
+
+function scheduleMediaTransition(block, element, current) {
+  const state = element._mediaState;
+  if (!state || !current) return;
+
+  clearMediaTimer(state);
+  state.activeMediaId = current.id;
+
+  if (current.type === 'video') {
+    const dur = Number(current.duration);
+    state.video.onended = state.onVideoEnded;
+    state.video.currentTime = 0;
+    state.video.play().catch(() => {});
+
+    if (Number.isFinite(dur) && dur > 0) {
+      state.transitionTimer = setTimeout(() => advanceMedia(block, element), dur * 1000);
+    }
+  } else {
+    state.video.onended = null;
+    const dur = Number(current.duration);
+    const finalDuration = Number.isFinite(dur) && dur > 0 ? dur : MEDIA_DEFAULT_DURATION.image;
+    state.transitionTimer = setTimeout(() => advanceMedia(block, element), finalDuration * 1000);
+  }
+}
+
+function renderMediaBlock(block, element) {
+  const state = element._mediaState;
+  if (!state) return;
+  const playlist = (block.playlist || []).map(ensureMediaItemDefaults);
+  block.playlist = playlist;
+
+  if (!playlist.length) {
+    clearMediaTimer(state);
+    state.activeMediaId = null;
+    state.placeholder.style.display = 'block';
+    state.caption.style.display = 'none';
+    state.video.pause();
+    state.video.removeAttribute('src');
+    state.video.load();
+    state.video.dataset.src = '';
+    state.video.style.display = 'none';
+    state.img.removeAttribute('src');
+    state.img.dataset.src = '';
+    state.img.style.display = 'none';
+    return;
+  }
+
+  if (block.currentIndex < 0 || block.currentIndex >= playlist.length) {
+    block.currentIndex = 0;
+  }
+
+  const current = ensureMediaItemDefaults(playlist[block.currentIndex]);
+  state.placeholder.style.display = 'none';
+  state.caption.textContent = current.name || (current.type === 'video' ? '影片' : '圖片');
+  state.caption.style.display = 'block';
+
+  if (current.type === 'video') {
+    state.img.style.display = 'none';
+    state.img.removeAttribute('src');
+    state.img.dataset.src = '';
+
+    if (state.video.dataset.src !== current.src) {
+      state.video.dataset.src = current.src;
+      state.video.src = current.src;
+      state.video.load();
+    } else {
+      state.video.currentTime = 0;
+    }
+    state.video.style.display = 'block';
+  } else {
+    state.video.pause();
+    state.video.style.display = 'none';
+    state.video.removeAttribute('src');
+    state.video.load();
+    state.video.dataset.src = '';
+
+    if (state.img.dataset.src !== current.src) {
+      state.img.dataset.src = current.src;
+      state.img.src = current.src;
+    }
+    state.img.style.display = 'block';
+  }
+
+  scheduleMediaTransition(block, element, current);
+}
+
+function createMediaItemFromFile(file) {
+  if (!file) return null;
+  const isVideo = file.type && file.type.startsWith('video');
+  const isImage = file.type && file.type.startsWith('image');
+  if (!isVideo && !isImage) return null;
+  return ensureMediaItemDefaults({
+    id: `media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: isVideo ? 'video' : 'image',
+    src: URL.createObjectURL(file),
+    name: file.name || (isVideo ? '影片檔' : '圖片檔'),
+    duration: isVideo ? MEDIA_DEFAULT_DURATION.video : MEDIA_DEFAULT_DURATION.image
+  });
+}
+
+function handleMediaFiles(block, fileList, element) {
+  const files = Array.from(fileList || []);
+  const additions = [];
+  files.forEach(file => {
+    const item = createMediaItemFromFile(file);
+    if (item) additions.push(item);
+  });
+  if (!additions.length) return;
+  const hadItems = block.playlist && block.playlist.length;
+  block.playlist = (block.playlist || []).concat(additions);
+  if (!hadItems) block.currentIndex = 0;
+  renderMediaBlock(block, element);
+}
+
+function setupMarqueeAnimation(block, element) {
+  const span = document.createElement('span');
+  span.classList.add('marquee');
+  span.textContent = block.text;
+  span.dataset.offsetX = element.clientWidth;
+  element.appendChild(span);
+
+  const marqueeState = { running: true, span };
+  element._marqueeState = marqueeState;
+
+  function step() {
+    if (!marqueeState.running) return;
+    let left = parseFloat(span.dataset.offsetX);
+    if (!Number.isFinite(left)) left = element.clientWidth;
+    left -= block.speed;
+    if (left < -span.offsetWidth) left = element.clientWidth;
+    span.dataset.offsetX = left;
+    span.style.transform = `translateX(${left}px)`;
+    requestAnimationFrame(step);
+  }
+
+  requestAnimationFrame(step);
+}
+
+function setupDateBlock(element) {
+  const span = document.createElement('span');
+  element.appendChild(span);
+  span.textContent = new Date().toLocaleString();
+  const timer = setInterval(() => {
+    span.textContent = new Date().toLocaleString();
+  }, 1000);
+  element._dateInterval = timer;
+}
+
+function removeBlock(block) {
+  if (!block || !block.element) return;
+
+  if (editingContext && editingContext.block === block) {
+    closeEditor();
+  }
+
+  const el = block.element;
+  if (block.type === 'media' && el._mediaState) {
+    const state = el._mediaState;
+    clearMediaTimer(state);
+    state.video.onended = null;
+    state.video.pause();
+    state.video.removeAttribute('src');
+    state.video.load();
+    state.img.removeAttribute('src');
+  }
+  if (block.type === 'marquee' && el._marqueeState) {
+    el._marqueeState.running = false;
+  }
+  if (block.type === 'date' && el._dateInterval) {
+    clearInterval(el._dateInterval);
+  }
+
+  el.remove();
+  block.element = null;
+  blocks = blocks.filter(b => b !== block);
+}
+
+function createBlockElement(block) {
+  const el = document.createElement('div');
+  el.classList.add('block');
+  el.dataset.id = block.id;
+  el.style.left = block.x + 'px';
+  el.style.top = block.y + 'px';
+  el.style.width = block.width + 'px';
+  el.style.height = block.height + 'px';
+  el.setAttribute('data-x', 0);
+  el.setAttribute('data-y', 0);
+
+  const controls = document.createElement('div');
+  controls.classList.add('block-controls');
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.classList.add('block-btn');
+  deleteBtn.textContent = '刪除';
+  deleteBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    removeBlock(block);
+  });
+  controls.appendChild(deleteBtn);
+  el.appendChild(controls);
+
+  if (block.type === 'media') {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('media-wrapper');
+
+    const placeholder = document.createElement('div');
+    placeholder.classList.add('media-placeholder');
+    placeholder.textContent = '拖放影片或圖片，或於編輯視窗新增檔案。';
+
+    const videoEl = document.createElement('video');
+    videoEl.controls = true;
+
+    const imgEl = document.createElement('img');
+
+    const caption = document.createElement('div');
+    caption.classList.add('media-caption');
+    caption.style.display = 'none';
+
+    wrapper.appendChild(placeholder);
+    wrapper.appendChild(videoEl);
+    wrapper.appendChild(imgEl);
+    wrapper.appendChild(caption);
+    el.appendChild(wrapper);
+
+    const mediaState = {
+      wrapper,
+      placeholder,
+      video: videoEl,
+      img: imgEl,
+      caption,
+      transitionTimer: null,
+      activeMediaId: null,
+      onVideoEnded: () => {
+        const playlist = block.playlist || [];
+        const current = playlist[block.currentIndex];
+        if (!current || current.type !== 'video') return;
+        if (Number(current.duration) > 0) return;
+        advanceMedia(block, el);
+      }
+    };
+
+    el._mediaState = mediaState;
+
+    el.addEventListener('dragover', e => {
+      e.preventDefault();
+    });
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      if (e.dataTransfer && e.dataTransfer.files) {
+        handleMediaFiles(block, e.dataTransfer.files, el);
+      }
+    });
+
+    renderMediaBlock(block, el);
+  }
+
+  else if (block.type === 'marquee') {
+    if (!Number.isFinite(block.speed) || block.speed <= 0) block.speed = 2;
+    setupMarqueeAnimation(block, el);
+  }
+
+  else if (block.type === 'date') {
+    setupDateBlock(el);
+  }
+
+  container.appendChild(el);
+  block.element = el;
+
+  el.addEventListener('dblclick', () => openEditor(block, el));
+  return el;
+}
+
+blocks.forEach(block => {
+  if (block.type === 'media') {
+    block.playlist = (block.playlist || []).map(ensureMediaItemDefaults);
+  }
+  createBlockElement(block);
+});
+
+if (toolbar) {
+  toolbar.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-add-block]');
+    if (!btn) return;
+    const type = btn.dataset.addBlock;
+    const block = createBlock(type);
+    if (!block) return;
+    blocks.push(block);
+    const el = createBlockElement(block);
+    if (type === 'media') {
+      // 聚焦到新區塊以利拖曳
+      el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    }
+  });
+}
+
+interact('.block')
+  .draggable({
+    modifiers: [interact.modifiers.restrictRect({ restriction: 'parent' })],
+    listeners: {
+      move(event) {
+        const target = event.target;
+        const block = blocks.find(b => b.element === target);
+        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+        target.style.transform = `translate(${x}px, ${y}px)`;
+        target.setAttribute('data-x', x);
+        target.setAttribute('data-y', y);
+        if (block) {
+          block.x = parseFloat(target.style.left || 0) + x;
+          block.y = parseFloat(target.style.top || 0) + y;
+        }
+      },
+      end(event) {
+        const target = event.target;
+        const block = blocks.find(b => b.element === target);
+        if (!block) return;
+        const x = parseFloat(target.getAttribute('data-x')) || 0;
+        const y = parseFloat(target.getAttribute('data-y')) || 0;
+        const left = parseFloat(target.style.left) || 0;
+        const top = parseFloat(target.style.top) || 0;
+        block.x = left + x;
+        block.y = top + y;
+        target.style.left = `${block.x}px`;
+        target.style.top = `${block.y}px`;
+        target.style.transform = 'translate(0px, 0px)';
+        target.setAttribute('data-x', 0);
+        target.setAttribute('data-y', 0);
+      }
+    }
+  })
+  .resizable({
+    edges: { left: true, right: true, bottom: true, top: true },
+    listeners: {
+      move(event) {
+        const target = event.target;
+        let { width, height } = event.rect;
+        target.style.width = width + 'px';
+        target.style.height = height + 'px';
+        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.deltaRect.left;
+        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.deltaRect.top;
+        target.style.transform = `translate(${x}px, ${y}px)`;
+        target.setAttribute('data-x', x);
+        target.setAttribute('data-y', y);
+
+        const block = blocks.find(b => b.element === target);
+        if (block) {
+          block.width = width;
+          block.height = height;
+        }
+      },
+      end(event) {
+        const target = event.target;
+        const block = blocks.find(b => b.element === target);
+        if (!block) return;
+        const x = parseFloat(target.getAttribute('data-x')) || 0;
+        const y = parseFloat(target.getAttribute('data-y')) || 0;
+        const left = parseFloat(target.style.left) || 0;
+        const top = parseFloat(target.style.top) || 0;
+        block.x = left + x;
+        block.y = top + y;
+        target.style.left = `${block.x}px`;
+        target.style.top = `${block.y}px`;
+        target.style.transform = 'translate(0px, 0px)';
+        target.setAttribute('data-x', 0);
+        target.setAttribute('data-y', 0);
+      }
+    },
+    modifiers: [interact.modifiers.restrictEdges({ outer: 'parent' })]
+  });
+</script>
+
+<script>
+const editorOverlay = document.getElementById('editorOverlay');
+const editorForm = document.getElementById('editorForm');
+const editorTitle = document.getElementById('editorTitle');
+const editorSections = Array.from(document.querySelectorAll('.editor-section'));
+const editorCancel = document.getElementById('editorCancel');
+const marqueeTextInput = document.getElementById('marqueeText');
+const marqueeSpeedInput = document.getElementById('marqueeSpeed');
+const marqueeSpeedValue = document.getElementById('marqueeSpeedValue');
+const mediaListContainer = document.getElementById('mediaList');
+const mediaFileInput = document.getElementById('mediaFileInput');
+let editorPlaylist = [];
+let editorCurrentIndex = 0;
+
+const typeNames = {
+  media: '多媒體',
+  marquee: '跑馬燈',
+  date: '日期'
+};
+
+function toggleSections(activeType) {
+  editorSections.forEach(section => {
+    const types = (section.dataset.section || '').split(' ');
+    if (types.includes(activeType)) {
+      section.classList.add('active');
+    } else {
+      section.classList.remove('active');
+    }
+  });
+}
+
+function renderEditorMediaList() {
+  if (!mediaListContainer) return;
+  mediaListContainer.innerHTML = '';
+
+  if (!editorPlaylist.length) {
+    const empty = document.createElement('div');
+    empty.classList.add('media-empty');
+    empty.textContent = '尚未加入任何檔案。';
+    mediaListContainer.appendChild(empty);
+    return;
+  }
+
+  editorPlaylist.forEach((item, index) => {
+    ensureMediaItemDefaults(item);
+
+    const row = document.createElement('div');
+    row.classList.add('media-item');
+    if (index === editorCurrentIndex) row.classList.add('is-active');
+
+    const top = document.createElement('div');
+    top.classList.add('media-item-top');
+
+    const info = document.createElement('div');
+    info.classList.add('media-item-info');
+
+    const badge = document.createElement('span');
+    badge.classList.add('media-badge');
+    badge.textContent = item.type === 'video' ? '影片' : '圖片';
+
+    const name = document.createElement('span');
+    name.classList.add('media-name');
+    name.textContent = item.name || `${badge.textContent} ${index + 1}`;
+
+    info.appendChild(badge);
+    info.appendChild(name);
+
+    const duration = document.createElement('label');
+    duration.classList.add('media-duration');
+    duration.textContent = '播放秒數';
+
+    const durationInput = document.createElement('input');
+    durationInput.type = 'number';
+    durationInput.min = '0';
+    durationInput.step = '0.5';
+    durationInput.value = Number.isFinite(item.duration) ? item.duration : (item.type === 'video' ? MEDIA_DEFAULT_DURATION.video : MEDIA_DEFAULT_DURATION.image);
+    durationInput.dataset.action = 'duration';
+    durationInput.dataset.index = index;
+
+    duration.appendChild(durationInput);
+
+    top.appendChild(info);
+    top.appendChild(duration);
+
+    const controls = document.createElement('div');
+    controls.classList.add('media-item-controls');
+
+    const actions = document.createElement('div');
+    actions.classList.add('media-item-actions');
+
+    const upBtn = document.createElement('button');
+    upBtn.type = 'button';
+    upBtn.dataset.action = 'up';
+    upBtn.dataset.index = index;
+    upBtn.textContent = '上移';
+    upBtn.disabled = index === 0;
+
+    const downBtn = document.createElement('button');
+    downBtn.type = 'button';
+    downBtn.dataset.action = 'down';
+    downBtn.dataset.index = index;
+    downBtn.textContent = '下移';
+    downBtn.disabled = index === editorPlaylist.length - 1;
+
+    const activateBtn = document.createElement('button');
+    activateBtn.type = 'button';
+    activateBtn.dataset.action = 'activate';
+    activateBtn.dataset.index = index;
+    activateBtn.textContent = '設為顯示';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.dataset.action = 'remove';
+    removeBtn.dataset.index = index;
+    removeBtn.textContent = '移除';
+
+    actions.appendChild(upBtn);
+    actions.appendChild(downBtn);
+    actions.appendChild(activateBtn);
+    actions.appendChild(removeBtn);
+
+    controls.appendChild(actions);
+
+    row.appendChild(top);
+    row.appendChild(controls);
+    mediaListContainer.appendChild(row);
+  });
+}
+
+function openEditor(block, element) {
+  editingContext = { block, element };
+  editorTitle.textContent = `${typeNames[block.type] || '區塊'}設定`;
+  toggleSections(block.type);
+
+  if (block.type === 'media') {
+    editorPlaylist = (block.playlist || []).map(item => ensureMediaItemDefaults({ ...item }));
+    editorCurrentIndex = block.currentIndex || 0;
+    if (editorCurrentIndex < 0 || editorCurrentIndex >= editorPlaylist.length) editorCurrentIndex = 0;
+    renderEditorMediaList();
+    if (mediaFileInput) mediaFileInput.value = '';
+  } else {
+    editorPlaylist = [];
+    editorCurrentIndex = 0;
+  }
+
+  if (block.type === 'marquee') {
+    marqueeTextInput.value = block.text || '';
+    const speed = Number.isFinite(block.speed) ? block.speed : 2;
+    marqueeSpeedInput.value = speed;
+    marqueeSpeedValue.textContent = speed;
+  }
+
+  editorOverlay.classList.add('active');
+}
+
+function closeEditor() {
+  editorOverlay.classList.remove('active');
+  editingContext = null;
+  editorPlaylist = [];
+  editorCurrentIndex = 0;
+}
+
+editorCancel.addEventListener('click', closeEditor);
+editorOverlay.addEventListener('click', e => {
+  if (e.target === editorOverlay) closeEditor();
+});
+
+if (mediaListContainer) {
+  mediaListContainer.addEventListener('click', e => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const index = parseInt(btn.dataset.index, 10);
+    if (Number.isNaN(index)) return;
+
+    switch (btn.dataset.action) {
+      case 'up':
+        if (index > 0) {
+          const [item] = editorPlaylist.splice(index, 1);
+          editorPlaylist.splice(index - 1, 0, item);
+          if (editorCurrentIndex === index) editorCurrentIndex--;
+          else if (editorCurrentIndex === index - 1) editorCurrentIndex++;
+          renderEditorMediaList();
+        }
+        break;
+      case 'down':
+        if (index < editorPlaylist.length - 1) {
+          const [item] = editorPlaylist.splice(index, 1);
+          editorPlaylist.splice(index + 1, 0, item);
+          if (editorCurrentIndex === index) editorCurrentIndex++;
+          else if (editorCurrentIndex === index + 1) editorCurrentIndex--;
+          renderEditorMediaList();
+        }
+        break;
+      case 'activate':
+        editorCurrentIndex = index;
+        renderEditorMediaList();
+        break;
+      case 'remove':
+        editorPlaylist.splice(index, 1);
+        if (editorCurrentIndex === index) {
+          editorCurrentIndex = Math.min(editorCurrentIndex, editorPlaylist.length - 1);
+        } else if (editorCurrentIndex > index) {
+          editorCurrentIndex--;
+        }
+        if (editorCurrentIndex < 0) editorCurrentIndex = 0;
+        renderEditorMediaList();
+        break;
+      default:
+        break;
+    }
+  });
+
+  mediaListContainer.addEventListener('input', e => {
+    const input = e.target;
+    if (!input.matches('input[data-action="duration"]')) return;
+    const index = parseInt(input.dataset.index, 10);
+    if (Number.isNaN(index) || !editorPlaylist[index]) return;
+    let value = parseFloat(input.value);
+    if (!Number.isFinite(value) || value < 0) {
+      value = editorPlaylist[index].type === 'video' ? MEDIA_DEFAULT_DURATION.video : MEDIA_DEFAULT_DURATION.image;
+      input.value = value;
+    }
+    editorPlaylist[index].duration = value;
+  });
+}
+
+if (mediaFileInput) {
+  mediaFileInput.addEventListener('change', e => {
+    if (!editingContext || editingContext.block.type !== 'media') return;
+    const files = Array.from(e.target.files || []);
+    files.forEach(file => {
+      const item = createMediaItemFromFile(file);
+      if (item) editorPlaylist.push(item);
+    });
+    if (editorPlaylist.length && editorCurrentIndex >= editorPlaylist.length) {
+      editorCurrentIndex = editorPlaylist.length - 1;
+    }
+    renderEditorMediaList();
+    e.target.value = '';
+  });
+}
+
+marqueeSpeedInput.addEventListener('input', () => {
+  marqueeSpeedValue.textContent = marqueeSpeedInput.value;
+});
+
+editorForm.addEventListener('submit', e => {
+  e.preventDefault();
+  if (!editingContext) return;
+  const { block, element } = editingContext;
+
+  if (block.type === 'media') {
+    block.playlist = editorPlaylist.map(item => ensureMediaItemDefaults({ ...item }));
+    block.currentIndex = block.playlist.length ? Math.min(editorCurrentIndex, block.playlist.length - 1) : 0;
+    renderMediaBlock(block, element);
+  }
+
+  if (block.type === 'marquee') {
+    block.text = marqueeTextInput.value || '';
+    const span = element.querySelector('.marquee');
+    if (span) {
+      span.textContent = block.text;
+      span.dataset.offsetX = element.clientWidth;
+    }
+    const speedValue = parseFloat(marqueeSpeedInput.value);
+    if (Number.isFinite(speedValue) && speedValue > 0) {
+      block.speed = speedValue;
+    }
+  }
+
+  closeEditor();
+});
+</script>
+</body>
+</html>
