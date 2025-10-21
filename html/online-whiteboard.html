@@ -6,6 +6,8 @@
 <title>線上白板</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1237301620325285"
      crossorigin="anonymous"></script>
+<!-- Tabler Icons CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
 <style>
 :root {
   --bg: #0b0d13;
@@ -89,10 +91,39 @@ button {
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 600;
-  padding: 8px 14px;
-  border-radius: 7px;
+  padding: 12px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 44px;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  display: block;
+  overflow: visible;
+}
+
+.ti {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 20px;
 }
 
 button:hover {
@@ -331,7 +362,9 @@ input[type="range"]::-moz-range-thumb {
 
 .text-editor button {
   font-size: 12px;
-  padding: 6px 12px;
+  padding: 8px 14px;
+  min-height: 32px;
+  min-width: auto;
 }
 @media (max-width: 768px) {
   #toolbar {
@@ -366,10 +399,18 @@ input[type="range"]::-moz-range-thumb {
 
     <div class="toolbar-section">
       <span class="toolbar-label">工具</span>
-      <button class="mode-button active" data-mode="draw">畫筆</button>
-      <button class="mode-button" data-mode="line">直線</button>
-      <button class="mode-button" data-mode="text">文字</button>
-      <button class="mode-button" data-mode="erase">橡皮擦</button>
+      <button class="mode-button active" data-mode="draw" title="畫筆">
+        <i class="ti ti-pencil"></i>
+      </button>
+      <button class="mode-button" data-mode="line" title="直線">
+        <i class="ti ti-minus"></i>
+      </button>
+      <button class="mode-button" data-mode="text" title="文字">
+        <i class="ti ti-letter-a"></i>
+      </button>
+      <button class="mode-button" data-mode="erase" title="橡皮擦">
+        <i class="ti ti-eraser"></i>
+      </button>
     </div>
 
     <div class="toolbar-section">
@@ -384,12 +425,24 @@ input[type="range"]::-moz-range-thumb {
     </div>
 
     <div class="toolbar-section">
-      <button data-action="undo" aria-label="復原 (Ctrl+Z)" disabled>↶</button>
-      <button data-action="redo" aria-label="重做 (Ctrl+Shift+Z)" disabled>↷</button>
-      <button data-action="clear" aria-label="清空白板">清空</button>
-      <button data-action="download" aria-label="下載 PNG">下載 PNG</button>
-      <button data-action="toggle-grid" aria-pressed="true" title="切換格線">格線：開</button>
-      <button data-action="toggle-white" aria-pressed="false" title="切換白底模式">白底：關</button>
+      <button data-action="undo" aria-label="復原 (Ctrl+Z)" title="復原" disabled>
+        <i class="ti ti-arrow-back-up"></i>
+      </button>
+      <button data-action="redo" aria-label="重做 (Ctrl+Shift+Z)" title="重做" disabled>
+        <i class="ti ti-arrow-forward-up"></i>
+      </button>
+      <button data-action="clear" aria-label="清空白板" title="清空">
+        <i class="ti ti-trash"></i>
+      </button>
+      <button data-action="download" aria-label="下載 PNG" title="下載 PNG">
+        <i class="ti ti-download"></i>
+      </button>
+      <button data-action="toggle-grid" aria-pressed="true" title="切換格線">
+        <i class="ti ti-grid-dots"></i>
+      </button>
+      <button data-action="toggle-white" aria-pressed="false" title="切換白底模式">
+        <i class="ti ti-sun"></i>
+      </button>
     </div>
   </header>
 
@@ -1168,17 +1221,16 @@ input[type="range"]::-moz-range-thumb {
   function toggleGrid() {
     boardContainer.classList.toggle('grid-hidden');
     const isHidden = boardContainer.classList.contains('grid-hidden');
-    gridBtn.textContent = `格線：${isHidden ? '關' : '開'}`;
-    gridBtn.classList.toggle('grid-off', isHidden);
     gridBtn.setAttribute('aria-pressed', String(!isHidden));
+    gridBtn.title = `格線：${isHidden ? '關' : '開'}`;
   }
 
   function toggleWhiteBackground() {
     state.whiteBackground = !state.whiteBackground;
     boardContainer.classList.toggle('white-mode', state.whiteBackground);
     if (whiteBtn) {
-      whiteBtn.textContent = `白底：${state.whiteBackground ? '開' : '關'}`;
       whiteBtn.setAttribute('aria-pressed', String(state.whiteBackground));
+      whiteBtn.title = `白底：${state.whiteBackground ? '開' : '關'}`;
     }
     if (textEditor) {
       textEditor.classList.toggle('white-mode', state.whiteBackground);
