@@ -405,6 +405,9 @@ input[type="range"]::-moz-range-thumb {
       <button class="mode-button" data-mode="line" title="直線">
         <i class="ti ti-minus"></i>
       </button>
+      <button class="mode-button" data-mode="circle" title="圓形">
+        <i class="ti ti-circle"></i>
+      </button>
       <button class="mode-button" data-mode="text" title="文字">
         <i class="ti ti-letter-a"></i>
       </button>
@@ -861,31 +864,43 @@ input[type="range"]::-moz-range-thumb {
     ctx.strokeStyle = stroke.mode === 'erase' ? 'rgba(0,0,0,1)' : stroke.color;
     ctx.lineWidth = stroke.size * dpr;
 
-    ctx.beginPath();
-    const first = points[0];
-    ctx.moveTo(first.x * w, first.y * h);
-
-    if (points.length === 1) {
-      ctx.lineTo(first.x * w + 0.001, first.y * h + 0.001);
-    } else {
-      for (let i = 1; i < points.length; i++) {
-        const prev = points[i - 1];
-        const current = points[i];
-        const midX = ((prev.x + current.x) / 2) * w;
-        const midY = ((prev.y + current.y) / 2) * h;
-        ctx.quadraticCurveTo(prev.x * w, prev.y * h, midX, midY);
-      }
-      const last = points[points.length - 1];
-      ctx.lineTo(last.x * w, last.y * h);
-    }
-
-    ctx.stroke();
-
-    if (stroke.mode !== 'erase' && points.length === 1) {
+    if (stroke.tool === 'circle' && points.length >= 2) {
+      // 繪製圓形
+      const start = points[0];
+      const end = points[points.length - 1];
+      const dx = (end.x - start.x) * w;
+      const dy = (end.y - start.y) * h;
+      const radius = Math.sqrt(dx * dx + dy * dy);
       ctx.beginPath();
-      ctx.fillStyle = stroke.color;
-      ctx.arc(first.x * w, first.y * h, (stroke.size * dpr) / 2, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.arc(start.x * w, start.y * h, radius, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      const first = points[0];
+      ctx.moveTo(first.x * w, first.y * h);
+
+      if (points.length === 1) {
+        ctx.lineTo(first.x * w + 0.001, first.y * h + 0.001);
+      } else {
+        for (let i = 1; i < points.length; i++) {
+          const prev = points[i - 1];
+          const current = points[i];
+          const midX = ((prev.x + current.x) / 2) * w;
+          const midY = ((prev.y + current.y) / 2) * h;
+          ctx.quadraticCurveTo(prev.x * w, prev.y * h, midX, midY);
+        }
+        const last = points[points.length - 1];
+        ctx.lineTo(last.x * w, last.y * h);
+      }
+
+      ctx.stroke();
+
+      if (stroke.mode !== 'erase' && points.length === 1) {
+        ctx.beginPath();
+        ctx.fillStyle = stroke.color;
+        ctx.arc(first.x * w, first.y * h, (stroke.size * dpr) / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }
@@ -989,7 +1004,7 @@ input[type="range"]::-moz-range-thumb {
       points: [point]
     };
 
-    if (state.liveStroke.tool === 'line') {
+    if (state.liveStroke.tool === 'line' || state.liveStroke.tool === 'circle') {
       state.liveStroke.points.push({ ...point });
     }
 
@@ -1035,7 +1050,7 @@ input[type="range"]::-moz-range-thumb {
     if (e.pointerId !== activePointerId || !state.liveStroke) return;
     e.preventDefault();
     const point = getPoint(e);
-    if (state.liveStroke.tool === 'line') {
+    if (state.liveStroke.tool === 'line' || state.liveStroke.tool === 'circle') {
       state.liveStroke.points[state.liveStroke.points.length - 1] = point;
     } else {
       state.liveStroke.points.push(point);
