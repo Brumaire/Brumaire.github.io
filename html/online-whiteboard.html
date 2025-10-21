@@ -221,16 +221,8 @@ input[type="range"]::-moz-range-thumb {
   touch-action: none;
 }
 
-#board.mode-line {
-  cursor: crosshair;
-}
-
 #board.mode-text {
   cursor: text;
-}
-
-#board.mode-erase {
-  cursor: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32"%3E%3Crect width="32" height="32" rx="6" ry="6" fill="%23ffffff"/%3E%3C/svg%3E') 8 8, crosshair;
 }
 
 #board-container.white-mode {
@@ -484,6 +476,39 @@ input[type="range"]::-moz-range-thumb {
     canvas.classList.toggle('mode-text', mode === 'text');
     if (mode !== 'text' && state.editorContext) {
       closeTextEditor(true);
+    }
+    updateCanvasCursor();
+  }
+
+  function updateCanvasCursor() {
+    if (state.mode === 'text') {
+      canvas.style.cursor = 'text';
+      return;
+    }
+
+    const size = Math.max(8, Math.min(64, state.size));
+    const color = state.color;
+    
+    if (state.mode === 'erase') {
+      // 橡皮擦：白色圓角方形
+      const cursorSvg = `data:image/svg+xml,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          <rect x="2" y="2" width="${size-4}" height="${size-4}" rx="${size/8}" ry="${size/8}" 
+                fill="white" stroke="#333" stroke-width="1" opacity="0.9"/>
+        </svg>
+      `)}`;
+      canvas.style.cursor = `url('${cursorSvg}') ${size/2} ${size/2}, crosshair`;
+    } else if (state.mode === 'draw' || state.mode === 'line') {
+      // 畫筆和直線：選取顏色的圓形
+      const cursorSvg = `data:image/svg+xml,${encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+          <circle cx="${size/2}" cy="${size/2}" r="${(size-4)/2}" 
+                  fill="${color}" stroke="#333" stroke-width="1" opacity="0.8"/>
+        </svg>
+      `)}`;
+      canvas.style.cursor = `url('${cursorSvg}') ${size/2} ${size/2}, crosshair`;
+    } else {
+      canvas.style.cursor = 'crosshair';
     }
   }
 
@@ -1171,6 +1196,7 @@ input[type="range"]::-moz-range-thumb {
       state.liveStroke.size = state.size;
     }
     updateSizeLabel();
+    updateCanvasCursor();
     requestRepaint();
   });
 
@@ -1181,6 +1207,7 @@ input[type="range"]::-moz-range-thumb {
       state.liveStroke.color = state.color;
       requestRepaint();
     }
+    updateCanvasCursor();
   });
 
   if (textInput) {
@@ -1244,6 +1271,15 @@ input[type="range"]::-moz-range-thumb {
       if (!state.spacePressed) {
         state.spacePressed = true;
         canvas.classList.add('mode-erase');
+        // 臨時橡皮擦模式游標
+        const size = Math.max(8, Math.min(64, state.size));
+        const cursorSvg = `data:image/svg+xml,${encodeURIComponent(`
+          <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+            <rect x="2" y="2" width="${size-4}" height="${size-4}" rx="${size/8}" ry="${size/8}" 
+                  fill="white" stroke="#333" stroke-width="1" opacity="0.9"/>
+          </svg>
+        `)}`;
+        canvas.style.cursor = `url('${cursorSvg}') ${size/2} ${size/2}, crosshair`;
       }
       e.preventDefault();
     }
@@ -1266,6 +1302,7 @@ input[type="range"]::-moz-range-thumb {
       state.spacePressed = false;
       if (state.mode !== 'erase') {
         canvas.classList.remove('mode-erase');
+        updateCanvasCursor(); // 恢復原來的游標
       }
       e.preventDefault();
     }
@@ -1273,6 +1310,7 @@ input[type="range"]::-moz-range-thumb {
 
   setCanvasSize();
   updateSizeLabel();
+  updateCanvasCursor();
   requestRepaint();
 })();
 </script>
